@@ -1,7 +1,7 @@
 {
   "name": "memberful-oauth-test",
   "version": "1.0.0",
-  "description": "A simple example of Memberful's PKCE OAuth flow written in NodeJS and Express",
+  "description": "A simple example of Memberful's SSA OAuth flow written in NodeJS and Express",
   "main": "index.js",
   "scripts": {
     "test": "jest",
