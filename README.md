@@ -18,7 +18,7 @@ npm start
 
 You can also upload this to a publicly accessible server and run it there.
 
-Open the following URL to verify that the server is running properly — You should see the words "Hello World".
+Open the following URL to verify that the server is running properly — You should see a "lobby" page with a link to begin the OAuth flow.
 
 ```bash
 http://localhost:3000/
@@ -30,7 +30,7 @@ Now that we know the server is running properly, let's create a Custom Applicati
 
 Go to Settings → Custom applications and create a new application. Check the "include OAuth tokens with this application" checkbox.
 
-This example is showing the PKCE flow, so pick either "Single Page Application" or "Mobile Application" as the application type.
+This example is showing the SSA flow, so pick either "Server-side Application" as the application type.
 
 For your OAuth Redirect URL, enter the following:
 
@@ -40,17 +40,19 @@ http://localhost:3000/callback
 
 (if you're not running this locally, replace localhost:3000 with your server's public URL)
 
-Copy your custom app's "OAuth Identifier" and paste it into index.js as the value of the **client_id** variable (you'll see a comment about this in the code).
+Copy your custom app's "OAuth Identifier" and paste it into src/index.js as the value of the **clientId** variable (you'll see a comment about this in the code).
+
+Copy your custom app's "OAuth Secret" and paste it into src/index.js as the value of the **clientSecret** variable (you'll see a comment about this in the code).
 
 Now we're ready to begin the OAuth flow by opening the following URL.
 
 ```bash
-http://localhost:3000/sign-in
+http://localhost:3000/begin-oauth-flow
 ```
 
-You can change the path for this route and for the callback near the top of the index.js file. (If you change the callback path, you'll need to create a new Custom Application in Memberful and replace the OAuth Identifier with the new one.)
+You can change the path for this route and for the callback near the top of the src/index.js file. (If you change the callback path, you'll need to create a new Custom Application in Memberful and replace the OAuth Identifier with the new one.)
 
-If everything works, you'll be asked to sign in (you'll need a member account to sign into), and then you'll end up at the /callback route with the access token being displayed. It'll look something like this:
+If everything works, you'll be asked to sign in (you'll need a member account to sign into), and then you'll end up at the /callback route with the access token and refresh token being displayed. It'll look something like this:
 
 ```javascript
 {"access_token":"DgavbYyWVK4QXckSSvWvfSpX","expires_in":899,"refresh_token":"FYRQ5BQx9qJC2tyibfPdbzgH","token_type":"bearer"}

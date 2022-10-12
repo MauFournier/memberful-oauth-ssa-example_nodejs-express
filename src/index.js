@@ -14,8 +14,6 @@
 
 import express from 'express';
 import axios from 'axios';
-import crypto from 'crypto';
-import base64url from 'base64url';
 
 //****************************************************************
 //*** Configuration
@@ -37,60 +35,30 @@ const memberfulURL = 'INSERT_YOUR_MEMBERFUL_URL_HERE';
 // Your custom app's "OAuth Identifier", found in the Memberful dashboard.
 const clientId = 'INSERT_YOUR_OAUTH_IDENTIFIER_HERE';
 
+// Your custom app's "OAuth Secret", found in the Memberful dashboard.
+const clientSecret = 'INSERT_YOUR_OAUTH_SECRET_HERE';
+
 //****************************************************************
 //*** Functions for generating the codes we'll need
 //****************************************************************
 
-export const generateRandomString = (length: number) => {
+export const generateRandomString = (length) => {
   let text = '';
   const possible =
-    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_=,.[]{}()|/!?<>@#$%^&*+~';
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   for (let i = 0; i < length; i++) {
     text += possible.charAt(Math.floor(Math.random() * possible.length));
   }
   return text;
 };
 
-// Code verifier should be a random string with a length between 43 and 128 characters
-export const generateCodeVerifier = () => {
-  const codeVerifier = generateRandomString(128);
-  return codeVerifier;
-};
-
-// Code challenge should be a base64url-encoded SHA256 hash of the code verifier
-export const generateCodeChallengeFromVerifier = (codeVerifier: string) => {
-  // Create a sha256 hash object
-  const hash = crypto.createHash('sha256');
-  // Pass the data to be hashed (our code verifier) to the hash object
-  const hashed = hash.update(codeVerifier);
-  // Obtain the hash.
-  // We won't specify an output format because we need base64url (NOT base64),
-  // which is not available in this digest() method
-  const digested = hashed.digest();
-
-  // Convert the hash (currently in binary format) to base64url format
-  const codeChallenge = base64url(digested);
-
-  return codeChallenge;
-};
-
-// For convenience, here's a helper function to generate both
-// a code verifier and its corresponding code challenge
-export const generateCodeVerifierAndChallenge = () => {
-  const codeVerifier = generateCodeVerifier();
-  const codeChallenge = generateCodeChallengeFromVerifier(codeVerifier);
-
-  return { codeVerifier, codeChallenge };
-};
-
 //****************************************************************
-//*** Let's use those functions to generate the codes we need
+//*** Declare necessary variables
 //****************************************************************
 
-// OK, let's generate our code verifier and code challenge
-let { codeVerifier, codeChallenge } = generateCodeVerifierAndChallenge();
-// Now let's generate our state, which is just a random string
-let state = generateRandomString(16);
+//We'll be generating our state string later on, but we'll need to keep
+//track of it throughout the flow, so we'll declare it here
+let state = '';
 
 //****************************************************************
 //*** Express app
@@ -117,22 +85,17 @@ app.get(beginOAuthFlowURL, (req, res) => {
 
   // Response type is always 'code'
   const responseType = 'code';
-  // If you use the functions above, the method is 'S256', short for 'SHA256'
-  const codeChallengeMethod = 'S256';
-  // Let's generate our code verifier and code challenge
-  codeVerifier = generateCodeVerifier();
-  codeChallenge = generateCodeChallengeFromVerifier(codeVerifier);
   // Now let's generate our state, which is just a random string
   state = generateRandomString(16);
-  // Remember to store the code verifier and state for use in later steps
-  // For this example, we're just storing them in global variables
+  // Remember to store the state for use in later steps
+  // For this example, we're just storing it in a global variable
 
   // > Step 2) Request Auth code: This is where we start the OAuth flow
   // Your application must open this Memberful URL in a browser
   // to allow the member to sign in:
   // https://YOURSITE.memberful.com/oauth
   res.redirect(
-    `${memberfulURL}/oauth/?response_type=${responseType}&client_id=${clientId}&state=${state}&code_challenge=${codeChallenge}&code_challenge_method=${codeChallengeMethod}`
+    `${memberfulURL}/oauth/?response_type=${responseType}&client_id=${clientId}&state=${state}`
   );
 });
 
@@ -166,8 +129,7 @@ app.get(callbackURL, async (req, res) => {
           grant_type: 'authorization_code',
           code,
           client_id: clientId,
-          // We'll need to include the same code verifier we generated earlier
-          code_verifier: codeVerifier,
+          client_secret: clientSecret,
         }
       );
 
@@ -268,6 +230,18 @@ app.get(callbackURL, async (req, res) => {
 
       // That's it! For more information on this process, check out our docs:
       // https://memberful.com/help/custom-development-and-api/sign-in-for-apps-via-oauth/
+
+      // Let's output the result, just for our own reference
+      res.send(`
+      <html><head></head><body>
+        <h2>Results from our access token request:</h2>
+        <pre>${JSON.stringify(accessTokenResponse.data, null, 2)}</pre>
+        <h2>Results from our member data request:</h2>
+        <pre>${JSON.stringify(memberDataResponse.data, null, 2)}</pre>
+        <h2>Results from our refresh token request:</h2>
+        <pre>${JSON.stringify(refreshTokenResponse.data, null, 2)}</pre>
+      </body></html>
+      `);
     } catch (error) {
       console.log(error);
       res.send(error.data);
