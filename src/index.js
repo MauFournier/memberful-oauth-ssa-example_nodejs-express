@@ -214,6 +214,7 @@ app.get(callbackURL, async (req, res) => {
           grant_type: 'refresh_token',
           refresh_token,
           client_id: clientId,
+          client_secret: clientSecret,
         }
       );
 
