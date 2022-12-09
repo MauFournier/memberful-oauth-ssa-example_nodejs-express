@@ -1,12 +1,12 @@
 /****************************************************************
- ** Memberful OAuth2 SSA API Example - Node.js + Express
+ ** Memberful OAuth2 SSA Example - Node.js + Express
  **
  ** This example shows how to use the Memberful OAuth2 Server-side
  ** app flow to authenticate a user and retrieve their profile information.
  **
- ** This is the flow you would use for a client-side application
- ** (like an Electron app, for example). If you're building a server-side
- ** application (SSA), you should look at our server-side example instead.
+ ** This is the flow you would use for a server-side application.
+ ** If you're building a client-side NodeJS application, you should
+ ** use the Client-side PKCE flow instead.
  **
  ** For more information, check out our documentation:
  ** https://memberful.com/help/custom-development-and-api/sign-in-for-apps-via-oauth/
@@ -22,7 +22,7 @@ import axios from 'axios';
 const defaultPort = 3000;
 
 // Choose the URL you want to use for the sign-in route
-const beginOAuthFlowURL = '/begin-oauth-flow';
+const beginOAuthFlowURL = '/login';
 
 // Choose the URL you want to use for the callback route.
 // This must match the callback URL you set as the Redirect URL
@@ -39,16 +39,18 @@ const clientId = 'INSERT_YOUR_OAUTH_IDENTIFIER_HERE';
 const clientSecret = 'INSERT_YOUR_OAUTH_SECRET_HERE';
 
 //****************************************************************
-//*** Functions for generating the codes we'll need
+//*** Helper function for generating the codes we'll need
 //****************************************************************
 
 export const generateRandomString = (length) => {
   let text = '';
   const possible =
     'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+
   for (let i = 0; i < length; i++) {
     text += possible.charAt(Math.floor(Math.random() * possible.length));
   }
+
   return text;
 };
 
@@ -57,16 +59,17 @@ export const generateRandomString = (length) => {
 //****************************************************************
 
 //We'll be generating our state string later on, but we'll need to keep
-//track of it throughout the flow, so we'll declare it here
+//track of it throughout the flow, so we'll declare it here.
 let state = '';
 
 //****************************************************************
-//*** Express app
+//*** Begin Express app
 //****************************************************************
 
 const app = express();
 
-// Lobby: This route isn't part of the OAuth flow, it's just for convenience
+// Lobby: This route isn't part of the OAuth flow, it's just for
+// our convenience during development.
 app.get('/', (req, res) => {
   res.send(`
   <html><head></head><body>
@@ -76,21 +79,25 @@ app.get('/', (req, res) => {
   `);
 });
 
-// beginOAuthFlow: This isn't part of the OAuth flow.
-// Imagine that this is some piece of logic inside your app that
-// will generate the necessary codes and then open up the browser
-// to begin the OAuth flow.
-app.get(beginOAuthFlowURL, (req, res) => {
-  // > Step 1) Generate the codes we'll need
+// > Step 1) Create a route to begin the OAuth flow
 
-  // Response type is always 'code'
-  const responseType = 'code';
-  // Now let's generate our state, which is just a random string
+// We must first generate the necessary codes and
+// open the browser to begin the OAuth flow. Whenever a user tries
+// to access a route that requires authentication, we should redirect
+// to this route, so you can name this route /login or something
+// similar.
+app.get(beginOAuthFlowURL, (req, res) => {
+  // > Step 2) Generate the codes we'll need
+
+  // Let's generate our state, which is just a random string
   state = generateRandomString(16);
   // Remember to store the state for use in later steps
   // For this example, we're just storing it in a global variable
 
-  // > Step 2) Request Auth code: This is where we start the OAuth flow
+  // Response type is always 'code'
+  const responseType = 'code';
+
+  // > Step 3) Request Auth code: This is where we start the OAuth flow
   // Your application must open this Memberful URL in a browser
   // to allow the member to sign in:
   // https://YOURSITE.memberful.com/oauth
@@ -99,26 +106,27 @@ app.get(beginOAuthFlowURL, (req, res) => {
   );
 });
 
-// > Step 3) User signs in via Memberful. We use passwordless sign-in by default,
+// > Step 4) User signs in via Memberful. We use passwordless sign-in by default,
 // so they'll receive an email with a link to sign in. Once they click that link,
 // they'll be redirected to the callback URL you set in the Memberful dashboard.
 // Note: The link they receive in their email will include a token. This token
-// is not the same as the auth code we're looking for. It's not part of this flow.
+// is *not* the auth code we're looking for. It's not part of this flow.
 
-// > Step 4) callback: This is the route you set as the Redirect URL for your Custom OAuth app
-// in the Memberful dashboard. This is where Memberful will redirect the user after
-// they've signed in via Memberful, attaching the auth code and state to the URL.
+// > Step 5) Callback Route: This is the route you set as the Redirect URL for your
+// Custom OAuth app in the Memberful dashboard. Memberful will redirect the user to
+// this URL after // they've signed in via Memberful, attaching the auth code and
+// state to the URL.
 // Example: https://YOURAPP.com/oauth_callback?code=[CODE]&state=[STATE]
 app.get(callbackURL, async (req, res) => {
   // We'll grab those two parameters from the URL
   const { code, state: returnedState } = req.query;
 
-  // > Step 5) Verify state - this is a security measure
+  // > Step 6) Verify state - this is a security measure
   if (state !== returnedState) {
     res.send("State doesn't match");
   } else {
     try {
-      // > Step 6) Access token request
+      // > Step 7) Access token request
       // Now that we have the auth code, exchange it for an access token
       // Make a POST request to this URL:
       // https://YOURSITE.memberful.com/oauth/token
@@ -140,10 +148,13 @@ app.get(callbackURL, async (req, res) => {
       // Let's extract the access and refresh tokens for the next steps
       const { access_token, refresh_token } = accessTokenResponse.data;
 
-      // > Step 7) Query Member Data
+      // > Step 8) Query Member Data
       // Now that we have an access token, we can use it to query the member's data
 
-      // First, let's build our GraphQL query, which will tell Memberful which fields we want
+      // First, let's build our GraphQL query, which will tell Memberful which fields we want.
+      // To learn more about our API and which fields are available, check out these two articles:
+      // https://memberful.com/help/custom-development-and-api/sign-in-for-apps-via-oauth/#requesting-member-data
+      // https://memberful.com/help/custom-development-and-api/memberful-api/#using-the-graphql-api-explorer
       const memberQuery = `
         {
           currentMember {
@@ -197,12 +208,12 @@ app.get(callbackURL, async (req, res) => {
       //}
 
       // Feel free to use this data inside your app.
-      // Alternatively, you can run more queries on via our API:
+      // Alternatively, you can run more queries to fetch more data via our API:
       // https://memberful.com/help/custom-development-and-api/memberful-api/
 
-      // > Step 8) Refresh token request
+      // > Step 9) Refresh token request
       // Access tokens are valid for 15 minutes.
-      // You can use the refresh token (provided along with each access token)
+      // You can use the refresh token (provided with each access token)
       // to get a new access token. Refresh tokens are valid for one year.
       // To obtain a new access token, send a POST request to:
       // https://YOURSITE.memberful.com/oauth/token
@@ -218,7 +229,10 @@ app.get(callbackURL, async (req, res) => {
         }
       );
 
-      console.log(refreshTokenResponse.data);
+      console.log(
+        "We've refreshed the token! New access token: ",
+        refreshTokenResponse.data
+      );
 
       // We now have a new access token!
       // Example response:
@@ -229,10 +243,10 @@ app.get(callbackURL, async (req, res) => {
       //     "token_type": "bearer"
       // }
 
-      // That's it! For more information on this process, check out our docs:
+      // That's all! For more information on this process, check out our docs:
       // https://memberful.com/help/custom-development-and-api/sign-in-for-apps-via-oauth/
 
-      // Let's output the result, just for our own reference
+      // Let's output a summary of the results, just for our own reference
       res.send(`
       <html><head></head><body>
         <h2>Results from our access token request:</h2>
